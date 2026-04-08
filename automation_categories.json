@@ -1,0 +1,752 @@
+[
+  {
+    "category": "Extend Trail Period",
+    "description": "Extends the trial/trail period expiry date for an organisation. Use when a customer's trial has expired or is about to expire and needs more time.",
+    "trigger_phrases": [
+      "extend trail period",
+      "extend trial period",
+      "extend trial",
+      "extend the trail",
+      "trial expired",
+      "trail expired",
+      "more trial time",
+      "trial extension",
+      "extend expiry",
+      "extend expiration",
+      "give more trial days"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123 or the full org identifier",
+        "extraction_patterns": [
+          "for org {value}",
+          "org_id {value}",
+          "org {value}",
+          "organisation {value}",
+          "organization {value}"
+        ]
+      },
+      {
+        "key": "extend_period",
+        "label": "New expiry date",
+        "required": true,
+        "type": "date",
+        "hint": "Format: YYYY-MM-DD  e.g. 2026-04-28",
+        "extraction_patterns": [
+          "until {value}",
+          "to {value}",
+          "till {value}",
+          "expiry {value}",
+          "date {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "extend_period": "{extend_period}"
+    }
+  },
+  {
+    "category": "Update Refresh Time",
+    "description": "Updates the data refresh schedule for an organisation. Use when someone wants to change when their data refreshes or add new refresh time slots.",
+    "trigger_phrases": [
+      "update refresh time",
+      "change refresh schedule",
+      "change refresh time",
+      "update refresh schedule",
+      "set refresh time",
+      "refresh schedule",
+      "data refresh timing",
+      "update data refresh"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "for org {value}",
+          "org_id {value}",
+          "org {value}"
+        ]
+      },
+      {
+        "key": "timezone",
+        "label": "Timezone abbreviation",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. EST, PST, IST, UTC",
+        "extraction_patterns": [
+          "{value} timezone",
+          "timezone {value}",
+          "tz {value}"
+        ]
+      },
+      {
+        "key": "refreshTime",
+        "label": "Refresh times (comma-separated HH:MM)",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. 09:00, 15:00  (multiple times separated by commas)",
+        "extraction_patterns": [
+          "at {value}",
+          "time {value}",
+          "times {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "timezone": "{timezone}",
+      "refreshTime": "{refreshTime}"
+    },
+    "payload_transform": {
+      "refreshTime": "split_by_comma"
+    }
+  },
+  {
+    "category": "Admin Email changes",
+    "description": "Changes the email address for an admin or regular user account. Use when an admin or user needs their login email updated.",
+    "trigger_phrases": [
+      "admin email changes",
+      "change email",
+      "email change",
+      "update email",
+      "change admin email",
+      "change user email",
+      "update admin email",
+      "email address change",
+      "new email",
+      "wrong email"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "role",
+        "label": "Role (admin or user)",
+        "required": true,
+        "type": "enum",
+        "enum_values": [
+          "admin",
+          "user"
+        ],
+        "hint": "Type admin or user",
+        "extraction_patterns": [
+          "role {value}",
+          "{value} role",
+          "as {value}"
+        ]
+      },
+      {
+        "key": "old_email",
+        "label": "Current email address",
+        "required": true,
+        "type": "email",
+        "hint": "e.g. old@example.com",
+        "extraction_patterns": [
+          "from {value}",
+          "current email {value}",
+          "old email {value}"
+        ]
+      },
+      {
+        "key": "new_email",
+        "label": "New email address",
+        "required": true,
+        "type": "email",
+        "hint": "e.g. new@example.com",
+        "extraction_patterns": [
+          "to {value}",
+          "new email {value}",
+          "change to {value}"
+        ]
+      },
+      {
+        "key": "user_id",
+        "label": "User ID",
+        "required": false,
+        "required_when": {
+          "role": "admin"
+        },
+        "type": "string",
+        "hint": "Required only for admin role change  e.g. user_123",
+        "extraction_patterns": [
+          "user_id {value}",
+          "user {value}",
+          "for user {value}"
+        ]
+      },
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": false,
+        "required_when": {
+          "role": "admin"
+        },
+        "type": "string",
+        "hint": "Required only for admin role change  e.g. ds_456",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}"
+        ]
+      },
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": false,
+        "required_when": {
+          "role": "admin"
+        },
+        "type": "string",
+        "hint": "Required only for admin role change  e.g. org_789",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}"
+        ]
+      }
+    ],
+    "payload_template": "dynamic_all_provided"
+  },
+  {
+    "category": "Enable Athena Threads",
+    "description": "Enables Athena Threads feature for a specific dataset in an organisation. Use when Athena Threads needs to be activated for a dataset.",
+    "trigger_phrases": [
+      "enable athena threads",
+      "athena threads",
+      "enable threads",
+      "activate athena threads",
+      "turn on athena threads"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "for org {value}",
+          "org_id {value}",
+          "org {value}"
+        ]
+      },
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_456",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}",
+          "for dataset {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "dataset_id": "{dataset_id}"
+    }
+  },
+  {
+    "category": "Get Entity Count",
+    "description": "Retrieves the entity count for a tenant. Use when someone needs to know how many entities exist for a specific tenant.",
+    "trigger_phrases": [
+      "get entity count",
+      "entity count",
+      "how many entities",
+      "entity number",
+      "count entities",
+      "entity total"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "tenant_id",
+        "label": "Tenant ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. tenant_001",
+        "extraction_patterns": [
+          "tenant {value}",
+          "tenant_id {value}",
+          "for tenant {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "tenant_id": "{tenant_id}"
+    }
+  },
+  {
+    "category": "Activate Dataset",
+    "description": "Activates a specific schema for a dataset in an organisation. Use when a dataset needs to be activated with a current, in-progress, or backup schema.",
+    "trigger_phrases": [
+      "activate dataset",
+      "dataset activation",
+      "activate schema",
+      "enable dataset",
+      "turn on dataset",
+      "activate the dataset"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_123",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}",
+          "for dataset {value}"
+        ]
+      },
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_456",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}",
+          "for org {value}"
+        ]
+      },
+      {
+        "key": "schema_to_activate",
+        "label": "Schema name or ID to activate",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. v2_schema",
+        "extraction_patterns": [
+          "schema {value}",
+          "activate schema {value}"
+        ]
+      },
+      {
+        "key": "activate_type",
+        "label": "Activation type",
+        "required": true,
+        "type": "enum",
+        "enum_values": [
+          "current_schema",
+          "in_progress_schema",
+          "backup_schema"
+        ],
+        "hint": "One of: current_schema / in_progress_schema / backup_schema",
+        "extraction_patterns": [
+          "type {value}",
+          "using {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "dataset_id": "{dataset_id}",
+      "org_id": "{org_id}",
+      "schema": {
+        "schema_to_activate": "{schema_to_activate}",
+        "activate_type_flag": "{activate_type}"
+      }
+    }
+  },
+  {
+    "category": "Remove SME Duplicates",
+    "description": "Removes duplicate SME (Subject Matter Expert) entries — synonyms or metadata — from a dataset. Use when there are duplicate SME records causing issues.",
+    "trigger_phrases": [
+      "remove sme duplicates",
+      "sme duplicates",
+      "clean sme",
+      "delete sme duplicates",
+      "sme duplicate issue",
+      "duplicate sme",
+      "remove duplicates sme"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_123",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}"
+        ]
+      },
+      {
+        "key": "remove_synonym_duplicate",
+        "label": "Remove synonym duplicates?",
+        "required": false,
+        "type": "boolean",
+        "hint": "yes or no",
+        "extraction_patterns": [
+          "synonym {value}",
+          "synonyms {value}"
+        ]
+      },
+      {
+        "key": "remove_metadata_duplicate",
+        "label": "Remove metadata duplicates?",
+        "required": false,
+        "type": "boolean",
+        "hint": "yes or no",
+        "extraction_patterns": [
+          "metadata {value}",
+          "meta {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "dataset_id": "{dataset_id}",
+      "remove_synonym_duplicate": "{remove_synonym_duplicate}",
+      "remove_metadata_duplicate": "{remove_metadata_duplicate}"
+    },
+    "payload_transform": {
+      "remove_synonym_duplicate": "yes_no_to_bool",
+      "remove_metadata_duplicate": "yes_no_to_bool"
+    }
+  },
+  {
+    "category": "Increase Session Timeout",
+    "description": "Increases the session timeout duration for an organisation. Use when users are getting logged out too quickly or need longer sessions.",
+    "trigger_phrases": [
+      "increase session timeout",
+      "session timeout",
+      "extend session",
+      "session expiry",
+      "session length",
+      "timeout issue",
+      "logout too fast",
+      "session duration",
+      "keep session longer"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}",
+          "for org {value}"
+        ]
+      },
+      {
+        "key": "time_in_minutes",
+        "label": "New timeout duration in minutes",
+        "required": true,
+        "type": "integer",
+        "hint": "e.g. 60  (must be a positive number)",
+        "extraction_patterns": [
+          "{value} minutes",
+          "{value} mins",
+          "to {value}",
+          "timeout {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "time_in_minutes": "{time_in_minutes}"
+    }
+  },
+  {
+    "category": "Increase User Count",
+    "description": "Increases the maximum allowed user count for an organisation. Use when an org needs more user seats than their current limit.",
+    "trigger_phrases": [
+      "increase user count",
+      "user count",
+      "add more users",
+      "more user seats",
+      "user limit",
+      "increase user limit",
+      "expand user count",
+      "user capacity",
+      "more users"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}",
+          "for org {value}"
+        ]
+      },
+      {
+        "key": "user_count",
+        "label": "Target user count",
+        "required": true,
+        "type": "integer",
+        "hint": "e.g. 15  (must be greater than 0)",
+        "extraction_patterns": [
+          "to {value}",
+          "{value} users",
+          "count {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "user_count": "{user_count}"
+    },
+    "payload_transform": {
+      "user_count": "to_int"
+    }
+  },
+  {
+    "category": "Change Data Fetch Limit",
+    "description": "Changes the maximum data fetch limit for a dataset. Use when a dataset is hitting fetch limit errors or needs a higher data pull limit.",
+    "trigger_phrases": [
+      "change data fetch limit",
+      "fetch limit",
+      "data fetch limit",
+      "increase fetch limit",
+      "update fetch limit",
+      "fetch size",
+      "data fetch size",
+      "fetch limit issue"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_123",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}",
+          "for dataset {value}"
+        ]
+      },
+      {
+        "key": "fetch_limit",
+        "label": "Maximum fetch limit size",
+        "required": true,
+        "type": "integer",
+        "hint": "e.g. 50000  (must be greater than 0)",
+        "extraction_patterns": [
+          "to {value}",
+          "limit {value}",
+          "{value} rows",
+          "{value} records"
+        ]
+      }
+    ],
+    "payload_template": {
+      "dataset_id": "{dataset_id}",
+      "fetch_limit": "{fetch_limit}"
+    },
+    "payload_transform": {
+      "fetch_limit": "to_int"
+    }
+  },
+  {
+    "category": "Remove Insight Duplicates",
+    "description": "Removes duplicate insight records from a dataset. Use when there are duplicate insights appearing in reports or dashboards.",
+    "trigger_phrases": [
+      "remove insight duplicates",
+      "insight duplicates",
+      "clean insights",
+      "duplicate insights",
+      "insight duplicate issue",
+      "remove duplicate insights"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_123",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}",
+          "for dataset {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "dataset_id": "{dataset_id}"
+    }
+  },
+  {
+    "category": "Change Data Refresh Time",
+    "description": "Changes the exact UTC datetime for the next data refresh for an organisation. Use when a specific one-time refresh datetime needs to be set.",
+    "trigger_phrases": [
+      "change data refresh time",
+      "data refresh time",
+      "set refresh datetime",
+      "change refresh datetime",
+      "set next refresh",
+      "refresh at specific time"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}",
+          "for org {value}"
+        ]
+      },
+      {
+        "key": "time_in_utc",
+        "label": "Refresh datetime in UTC",
+        "required": true,
+        "type": "datetime",
+        "hint": "Format: YYYY-MM-DDTHH:MM:SS  e.g. 2026-08-01T09:00:00",
+        "extraction_patterns": [
+          "at {value}",
+          "time {value}",
+          "datetime {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "time_in_utc": "{time_in_utc}"
+    }
+  },
+  {
+    "category": "Enable Connector V2 Menu",
+    "description": "Enables the Connector V2 menu for a specific user and dataset in an organisation. Use when a user cannot see or access the Connector V2 menu.",
+    "trigger_phrases": [
+      "enable connector v2 menu",
+      "connector v2 menu",
+      "connector v2",
+      "enable connector v2",
+      "v2 connector menu",
+      "connector v2 not showing"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}",
+          "for org {value}"
+        ]
+      },
+      {
+        "key": "user_id",
+        "label": "User ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. user_456",
+        "extraction_patterns": [
+          "user {value}",
+          "user_id {value}",
+          "for user {value}"
+        ]
+      },
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_789",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}",
+          "for dataset {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "user_id": "{user_id}",
+      "dataset_id": "{dataset_id}"
+    }
+  },
+  {
+    "category": "Enable Athena Iq Menu",
+    "description": "Enables the Athena IQ menu for a specific user and dataset in an organisation. Use when a user cannot see or access the Athena IQ menu feature.",
+    "trigger_phrases": [
+      "enable athena iq menu",
+      "athena iq menu",
+      "athena iq",
+      "enable athena iq",
+      "athena iq not showing",
+      "enable iq menu"
+    ],
+    "api_action": "irtbotautomation",
+    "fields": [
+      {
+        "key": "org_id",
+        "label": "Organisation ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. org_123",
+        "extraction_patterns": [
+          "org {value}",
+          "org_id {value}",
+          "for org {value}"
+        ]
+      },
+      {
+        "key": "user_id",
+        "label": "User ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. user_456",
+        "extraction_patterns": [
+          "user {value}",
+          "user_id {value}",
+          "for user {value}"
+        ]
+      },
+      {
+        "key": "dataset_id",
+        "label": "Dataset ID",
+        "required": true,
+        "type": "string",
+        "hint": "e.g. ds_789",
+        "extraction_patterns": [
+          "dataset {value}",
+          "dataset_id {value}",
+          "for dataset {value}"
+        ]
+      }
+    ],
+    "payload_template": {
+      "org_id": "{org_id}",
+      "user_id": "{user_id}",
+      "dataset_id": "{dataset_id}"
+    }
+  }
+]
