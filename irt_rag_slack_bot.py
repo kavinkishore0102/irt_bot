@@ -194,6 +194,100 @@ def detect_automation_from_kb(query: str) -> dict | None:
     return None
 
 
+def _validate_field_value(field: dict, value: str) -> bool:
+    """
+    Lightweight type-check so line-based positional mapping doesn't
+    assign a date string to an org_id field or vice-versa.
+
+    Types in automation_categories.json:
+        "string"  → any non-empty value
+        "date"    → must look like YYYY-MM-DD
+        "integer" / "number" / "int" → must be all digits
+        "email"   → must contain @
+        (default) → accept anything non-empty
+    """
+    if not value or not value.strip():
+        return False
+    ft = field.get("type", "string").lower()
+    if ft == "date":
+        return bool(re.match(r"^\d{4}-\d{1,2}-\d{1,2}$", value.strip()))
+    if ft in ("integer", "number", "int"):
+        return value.strip().lstrip("-").isdigit()
+    if ft == "email":
+        return "@" in value
+    return True   # "string", "boolean", etc — accept any non-empty value
+
+
+def _extract_fields_by_position(missing_fields: list, message: str,
+                                 already_collected: dict) -> dict:
+    """
+    Positional fallback when per-field AI extraction fails on plain unlabeled values.
+
+    Strategy A — single missing field, single response line:
+        Assign the whole (label-stripped) line directly to that field.
+
+    Strategy B — N missing fields, message has >= N non-empty lines:
+        Map line[i] to missing_fields[i] in order.
+        Each line is first tried through _extract_field_with_ai on the line
+        alone; if that also fails, the raw stripped line is used directly
+        (with type validation so a date string never lands in an org_id field).
+
+    Returns {key: value} for every field that was successfully mapped.
+    """
+    result = {}
+    lines = [ln.strip().rstrip(".,;:") for ln in message.strip().splitlines()
+             if ln.strip().rstrip(".,;:")]
+    if not lines or not missing_fields:
+        return result
+
+    def _strip_label(raw: str) -> str:
+        """Remove an optional 'label:' / 'label=' prefix from a single line."""
+        stripped = re.sub(r"^[\w\s\-_]+\s*[:\-=]\s*", "", raw).strip().rstrip(".,;")
+        return stripped if stripped else raw
+
+    # ── Strategy A: exactly one field missing, one line of response ──────────
+    if len(missing_fields) == 1 and len(lines) == 1:
+        field = missing_fields[0]
+        value = _strip_label(lines[0])
+        if value and _validate_field_value(field, value):
+            log.warning(
+                f"_extract_fields_by_position (single-field): "
+                f"key={field['key']} → '{value}'"
+            )
+            result[field["key"]] = value
+        return result
+
+    # ── Strategy B: map each line to the matching missing field in order ──────
+    for i, field in enumerate(missing_fields):
+        if i >= len(lines):
+            break 
+        raw_line = lines[i]
+
+        # First: try AI extraction on just this single line
+        ai_val = _extract_field_with_ai(
+            field["key"], field["label"], field["hint"], raw_line,
+            already_collected={**already_collected, **result},
+        )
+        if ai_val and _validate_field_value(field, ai_val):
+            result[field["key"]] = ai_val
+            log.warning(
+                f"_extract_fields_by_position (ai-line): "
+                f"key={field['key']} line='{raw_line}' → '{ai_val}'"
+            )
+            continue
+
+        # Fallback: strip label prefix and use raw, but only if type validates
+        raw_val = _strip_label(raw_line)
+        if raw_val and _validate_field_value(field, raw_val):
+            result[field["key"]] = raw_val
+            log.warning(
+                f"_extract_fields_by_position (raw-line): "
+                f"key={field['key']} line='{raw_line}' → '{raw_val}'"
+            )
+
+    return result
+
+
 def _extract_json_from_message(message: str) -> dict:
     """
     Silently checks if the user's message contains a JSON object
@@ -398,14 +492,23 @@ def _extract_all_fields_from_message(category_def: dict, message: str) -> dict:
     Returns a dict of {key: value} for values that were found.
     """
     collected = {}
-    for field in category_def.get("fields", []):
+    fields = category_def.get("fields", [])
+    for field in fields:
         value = _extract_field_with_ai(
             field["key"], field["label"], field["hint"], message,
-            already_collected=collected  # ← pass what's been collected so far
+            already_collected=collected
         )
         if value:
             collected[field["key"]] = value
             log.warning(f"pre-extracted {field['key']}='{value}'")
+
+    # Positional fallback for fields still missing
+    still_missing = [f for f in fields if f["key"] not in collected]
+    if still_missing:
+        positional = _extract_fields_by_position(still_missing, message, collected)
+        for k, v in positional.items():
+            collected[k] = v
+            log.warning(f"pre-extracted (positional) {k}='{v}'")
 
     # ── Email dedup fix: if old_email and new_email are the same value,
     # only one email was provided — keep old_email, clear new_email
@@ -607,16 +710,35 @@ def automation_agent(user: str, channel: str, message: str, category_def: dict =
             if f["key"] not in collected and _is_field_required(f, collected)
         ]
         if missing_now:
-            # Try to extract every missing field from this single message
+            # ── Pass 1: per-field AI extraction on the full message ───────────
             extracted_any = False
             for field in missing_now:
                 extracted = _extract_field_with_ai(
                     field["key"], field["label"], field["hint"], message,
-                    already_collected=collected  # ← pass context so emails aren't reused
+                    already_collected=collected
                 )
                 if extracted:
                     collected[field["key"]] = extracted
                     extracted_any = True
+
+            # ── Pass 2: positional fallback for fields still missing ──────────
+            # Handles plain unlabeled replies like "trailtest01" or
+            # multi-line "trailtest01\n2026-04-28" where per-field AI fails.
+            still_missing = [
+                f for f in missing_now if f["key"] not in collected
+            ]
+            if still_missing:
+                positional = _extract_fields_by_position(
+                    still_missing, message, collected
+                )
+                if positional:
+                    collected.update(positional)
+                    extracted_any = True
+                    log.warning(
+                        f"[AUTO] POSITIONAL FALLBACK — user={user} "
+                        f"category={cat_def.get('category','')} "
+                        f"positional_keys={list(positional.keys())}"
+                    )
 
             # Email dedup: if both emails extracted and they're the same,
             # only one email was given — keep old, re-ask for new
