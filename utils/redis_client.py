@@ -83,7 +83,7 @@ def save_thread_history(workspace_id: str, thread_ts: str, history: list) -> boo
     """
     key = _make_key(workspace_id, thread_ts)
     try:
-        _get_client().setex(key, 86400, json.dumps(history, ensure_ascii=False))
+        _get_client().setex(key, 259200, json.dumps(history, ensure_ascii=False))
         log.warning(f"[Redis] SETEX {key} → {len(history)} messages saved (TTL reset to 24h)")
         return True
     except Exception as e:

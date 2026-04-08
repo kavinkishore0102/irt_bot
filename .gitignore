@@ -8,3 +8,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 *.deb
+*.deb
+*.deb
+.env
+qdrant_storage/

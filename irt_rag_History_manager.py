@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-DEFAULT_MAX_MESSAGES = 20   # keep last N messages (excluding system prompt)
+DEFAULT_MAX_MESSAGES = 50   # keep last N messages (excluding system prompt)
 DEFAULT_MAX_TOKENS   = 8000  # rough token estimate before trimming kicks in
 
 
