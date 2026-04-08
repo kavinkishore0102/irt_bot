@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+qdrant_storage/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+*.deb

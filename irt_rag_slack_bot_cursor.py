@@ -150,6 +150,27 @@ def _clear_all_automation_for_user(user: str) -> None:
             _automation_anchors.pop(k, None)
 
 
+def _should_interrupt_automation_for_chat(query: str, awaiting_confirm: bool) -> bool:
+    """Greetings should not continue pending automation (e.g. slot-fill for Tenant ID)."""
+    t = query.strip()
+    if len(t) > 80:
+        return False
+    tl = t.lower()
+    if awaiting_confirm:
+        if tl in (
+            "ok", "yes", "y", "confirm", "proceed", "cancel", "no", "abort", "stop", "exit",
+        ):
+            return False
+    if re.match(
+        r"^(hi|hello|hey|hii|yo|sup|thanks?|thank you|thx|ty|bye|goodbye|gm|good (morning|afternoon|evening))[\s!.,]*$",
+        tl,
+    ):
+        return True
+    if tl in ("hi", "hello", "hey", "thanks", "thx", "bye"):
+        return True
+    return False
+
+
 def _resolve_auto_state_key(
     user: str,
     channel: str,
@@ -1299,14 +1320,20 @@ def stream_response(
                 sk_auto = f"{user_id}::ch:{channel}:t:{thread_ts}"
                 reply_ts = thread_ts
         if sk_auto and _get_auto_state_keyed(sk_auto):
-            response = automation_agent(
-                user_id, channel, query, category=None, state_key=sk_auto
-            )
-            kw = {"channel": channel, "text": response, "blocks": step_block(response)}
-            if reply_ts:
-                kw["thread_ts"] = reply_ts
-            client.chat_postMessage(**kw)
-            return
+            st0 = _get_auto_state_keyed(sk_auto)
+            awaiting = bool(st0.get("awaiting_confirm"))
+            if _should_interrupt_automation_for_chat(query, awaiting):
+                log.warning("automation interrupted: conversational message; clearing state")
+                _automation_state.pop(sk_auto, None)
+            else:
+                response = automation_agent(
+                    user_id, channel, query, category=None, state_key=sk_auto
+                )
+                kw = {"channel": channel, "text": response, "blocks": step_block(response)}
+                if reply_ts:
+                    kw["thread_ts"] = reply_ts
+                client.chat_postMessage(**kw)
+                return
 
     # ══════════════════════════════════════════════════════════════════════════
     # EPHEMERAL PATH — no loading messages, single final post
@@ -1532,50 +1559,13 @@ def stream_response(
             stop_flag["done"] = True
             anim.join(timeout=1)
 
-            # Pure DMs (channel starts with D) never use threads
-            is_pure_dm = channel.startswith("D")
+            try:
+                client.chat_delete(channel=channel, ts=msg_ts)
+            except Exception:
+                pass
 
-            if is_pure_dm:
-                # Delete loading message, post clarification as plain message
-                try:
-                    client.chat_delete(channel=channel, ts=msg_ts)
-                except Exception:
-                    pass
-                client.chat_postMessage(
-                    channel=channel,
-                    text=f"🤔 {clarification}",
-                    blocks=clarify_blocks(clarification, suggestions),
-                )
-                if user_id:
-                    _add_history(user_id, history_channel, "user", query)
-                    _add_history(user_id, history_channel, "assistant", f"🤔 {clarification}")
-            else:
-                # Channel or group DM — use threads
-                if thread_ts:
-                    # Already in a thread — post clarification in same thread
-                    anchor_ts = thread_ts
-                    try:
-                        client.chat_delete(channel=channel, ts=msg_ts)
-                    except Exception:
-                        pass
-                else:
-                    # /irt command or channel message — post the ORIGINAL QUESTION
-                    # as a permanent message first, then thread the clarification under it
-                    # We cannot use msg_ts because we delete the loading message
-                    try:
-                        client.chat_delete(channel=channel, ts=msg_ts)
-                    except Exception:
-                        pass
-                    anchor = client.chat_postMessage(
-                        channel=channel,
-                        text=f"*Question:* {query}",
-                        blocks=[{
-                            "type": "section",
-                            "text": {"type": "mrkdwn", "text": f"*Question:* {query}"}
-                        }]
-                    )
-                    anchor_ts = anchor["ts"]
-
+            if thread_ts:
+                anchor_ts = thread_ts
                 sent = client.chat_postMessage(
                     channel   = channel,
                     text      = f"🤔 {clarification}",
@@ -1583,10 +1573,35 @@ def stream_response(
                     thread_ts = anchor_ts,
                 )
                 if user_id:
-                    # Save pending keyed by BOTH:
-                    # 1. sent["ts"]  — the clarification message ts
-                    # 2. anchor_ts   — the parent/thread ts (what Slack sends as thread_ts on reply)
-                    # This ensures _get_pending works regardless of which ts arrives
+                    _add_history(user_id, history_channel, "user", query)
+                    _add_history(user_id, history_channel, "assistant", f"🤔 {clarification}")
+                    _save_pending(
+                        ts=sent["ts"], query=query, user=user_id, channel=channel
+                    )
+                    _save_pending(
+                        ts=anchor_ts, query=query, user=user_id, channel=channel
+                    )
+                    _pending[sent["ts"]]["clarify_ts"] = sent["ts"]
+                    _pending[anchor_ts]["clarify_ts"] = sent["ts"]
+                    _pending[sent["ts"]]["anchor_ts"] = anchor_ts
+                    _pending[anchor_ts]["anchor_ts"] = anchor_ts
+            else:
+                anchor = client.chat_postMessage(
+                    channel=channel,
+                    text=f"*Question:* {query}",
+                    blocks=[{
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": f"*Question:* {query}"}
+                    }]
+                )
+                anchor_ts = anchor["ts"]
+                sent = client.chat_postMessage(
+                    channel   = channel,
+                    text      = f"🤔 {clarification}",
+                    blocks    = clarify_blocks(clarification, suggestions),
+                    thread_ts = anchor_ts,
+                )
+                if user_id:
                     _save_pending(
                         ts      = sent["ts"],
                         query   = query,
@@ -1599,11 +1614,10 @@ def stream_response(
                         user    = user_id,
                         channel = channel,
                     )
-                    # Cross-reference so cleanup can find both keys
-                    _pending[sent["ts"]]["clarify_ts"]  = sent["ts"]
-                    _pending[anchor_ts]["clarify_ts"]   = sent["ts"]
-                    _pending[sent["ts"]]["anchor_ts"]   = anchor_ts
-                    _pending[anchor_ts]["anchor_ts"]    = anchor_ts
+                    _pending[sent["ts"]]["clarify_ts"] = sent["ts"]
+                    _pending[anchor_ts]["clarify_ts"] = sent["ts"]
+                    _pending[sent["ts"]]["anchor_ts"] = anchor_ts
+                    _pending[anchor_ts]["anchor_ts"] = anchor_ts
             return
 
         else:  # search
@@ -1841,6 +1855,27 @@ def _already_processed(ts: str) -> bool:
                 _processed.discard(t)
         return False
 
+
+def _slack_event_is_im(event: dict) -> bool:
+    """True for 1:1 DM. Slack sometimes omits channel_type; DM channels IDs start with D."""
+    ct = (event.get("channel_type") or "").strip()
+    if ct == "im":
+        return True
+    ch = event.get("channel") or ""
+    return not ct and ch.startswith("D")
+
+
+def _slack_event_is_dm_or_mpim(event: dict) -> bool:
+    """True for DM or group DM so we can answer without requiring channel_type."""
+    ct = (event.get("channel_type") or "").strip()
+    if ct in ("im", "mpim"):
+        return True
+    ch = event.get("channel") or ""
+    if not ct and ch.startswith("D"):
+        return True
+    return False
+
+
 @app.event("message")
 def handle_dm(event, client):
     if event.get("bot_id") or event.get("subtype"):
@@ -1849,7 +1884,6 @@ def handle_dm(event, client):
     query        = clean(event.get("text", "")).strip()
     channel      = event.get("channel", "")
     user         = event.get("user", "")
-    channel_type = event.get("channel_type", "")
     thread_ts    = event.get("thread_ts")
     event_ts     = event.get("ts", "")
 
@@ -1863,7 +1897,7 @@ def handle_dm(event, client):
     # ── Thread reply path ─────────────────────────────────────────────────────
     # ANY message inside a thread is ALWAYS a follow-up in that thread's context.
     if thread_ts:
-        if channel_type not in ("im",):
+        if not _slack_event_is_im(event):
             pending = _get_pending(thread_ts)
             if pending and pending["user"] == user:
                 # User answered the clarifying question
@@ -1893,7 +1927,7 @@ def handle_dm(event, client):
             return
 
     # ── DM / group DM direct message path ────────────────────────────────────
-    if channel_type not in ("im", "mpim"):
+    if not _slack_event_is_dm_or_mpim(event):
         return
 
     log.warning(f"DM u={user} q={query[:80]}")
